@@ -1,12 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { jsPDF } from 'jspdf';
 
-useEffect(() => {
-  setTimeout(() => {
-    window.Pi && window.Pi.init({ version: "2.0", sandbox: true });
-  }, 300);
-}, []);
-
 function App() {
   const [file, setFile] = useState(null);
   const [progress, setProgress] = useState(0);
@@ -14,7 +8,27 @@ function App() {
   const [converting, setConverting] = useState(false);
   const [history, setHistory] = useState([]);
   const [dragOver, setDragOver] = useState(false);
+  const [piUser, setPiUser] = useState(null);
   const inputRef = useRef();
+
+  const onIncompletePaymentFound = (payment) => {
+    console.log('Incomplete payment found', payment);
+  };
+
+  useEffect(() => {
+    const initPi = async () => {
+      try {
+        await window.Pi.init({ version: "2.0", sandbox: true });
+        const auth = await window.Pi.authenticate(['username'], onIncompletePaymentFound);
+        setPiUser(auth.user.username);
+      } catch (e) {
+        console.log('Pi auth failed', e);
+      }
+    };
+    setTimeout(() => {
+      window.Pi && initPi();
+    }, 300);
+  }, []);
 
   const handleFile = (f) => {
     setFile(f);
@@ -85,15 +99,24 @@ function App() {
       <div style={{ background: 'linear-gradient(135deg, #4f46e5, #7c3aed)', padding: '20px', textAlign: 'center' }}>
         <h1 style={{ color: 'white', fontSize: '2rem', margin: 0 }}>📄 PurePDF</h1>
         <p style={{ color: '#c4b5fd', margin: '5px 0 0' }}>Convert your files to PDF instantly</p>
+        <div style={{ marginTop: '10px' }}>
+          {piUser ? (
+            <span style={{ color: '#c4b5fd', fontSize: '14px' }}>👤 {piUser}</span>
+          ) : (
+            <button
+              onClick={() => window.Pi && window.Pi.authenticate(['username'], onIncompletePaymentFound)}
+              style={{ background: 'white', color: '#4f46e5', border: 'none', borderRadius: '8px', padding: '6px 14px', fontWeight: 'bold', cursor: 'pointer' }}>
+              Sign in with Pi
+            </button>
+          )}
+        </div>
       </div>
 
       <div style={{ maxWidth: '700px', margin: '40px auto', padding: '0 20px' }}>
-        {/* Privacy Notice */}
         <div style={{ background: '#ecfdf5', border: '1px solid #6ee7b7', borderRadius: '10px', padding: '12px', marginBottom: '20px', textAlign: 'center', color: '#065f46', fontSize: '14px' }}>
           🔒 Your files are processed locally and never uploaded to any server
         </div>
 
-        {/* Upload Area */}
         <div
           onDrop={handleDrop}
           onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
@@ -123,7 +146,6 @@ function App() {
           />
         </div>
 
-        {/* Convert Button */}
         {file && (
           <button
             onClick={convertToPDF}
@@ -145,14 +167,12 @@ function App() {
           </button>
         )}
 
-        {/* Progress Bar */}
         {converting && (
           <div style={{ marginTop: '15px', background: '#e0e7ff', borderRadius: '10px', height: '10px' }}>
             <div style={{ width: `${progress}%`, background: '#4f46e5', height: '10px', borderRadius: '10px', transition: 'width 0.3s' }} />
           </div>
         )}
 
-        {/* PDF Preview + Download */}
         {pdfUrl && (
           <div style={{ marginTop: '30px', background: 'white', borderRadius: '16px', padding: '20px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}>
             <h3 style={{ color: '#4f46e5', marginTop: 0 }}>✅ PDF Ready!</h3>
@@ -165,7 +185,6 @@ function App() {
           </div>
         )}
 
-        {/* History */}
         {history.length > 0 && (
           <div style={{ marginTop: '30px', background: 'white', borderRadius: '16px', padding: '20px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}>
             <h3 style={{ color: '#4f46e5', marginTop: 0 }}>🕘 Recent Conversions</h3>

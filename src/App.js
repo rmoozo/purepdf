@@ -1,5 +1,11 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { jsPDF } from 'jspdf';
+
+useEffect(() => {
+  setTimeout(() => {
+    window.Pi && window.Pi.init({ version: "2.0", sandbox: true });
+  }, 300);
+}, []);
 
 function App() {
   const [file, setFile] = useState(null);

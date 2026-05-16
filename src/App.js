@@ -43,6 +43,16 @@ function App() {
     if (f) handleFile(f);
   };
 
+  const downloadPdf = (url, name) => {
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = name;
+    link.target = '_blank';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const convertToPDF = async () => {
     if (!file) return;
     setConverting(true);
@@ -62,7 +72,7 @@ function App() {
         const img = e.target.result;
         doc.addImage(img, 'JPEG', 10, 10, 190, 150);
         setProgress(100);
-        const url = doc.output('bloburl');
+        const url = doc.output('datauristring');
         setPdfUrl(url);
         setHistory(h => [{
           name: file.name,
@@ -80,7 +90,7 @@ function App() {
         doc.setFontSize(12);
         doc.text(lines, 15, 20);
         setProgress(100);
-        const url = doc.output('bloburl');
+        const url = doc.output('datauristring');
         setPdfUrl(url);
         setHistory(h => [{
           name: file.name,
@@ -136,11 +146,12 @@ function App() {
           <p style={{ color: '#4f46e5', fontWeight: 'bold', fontSize: '1.1rem' }}>
             {file ? `✅ ${file.name}` : 'Drag & Drop or Click to Upload'}
           </p>
-          <p style={{ color: '#9ca3af', fontSize: '13px' }}>Supports: JPG, PNG, TXT, DOCX, CSV</p>
+          <p style={{ color: '#9ca3af', fontSize: '13px' }}>Supports: JPG, PNG, TXT, CSV</p>
           <input
             ref={inputRef}
             type="file"
-            accept=".jpg,.jpeg,.png,.txt,.csv"
+            accept="image/*,.txt,.csv"
+            multiple={false}
             style={{ display: 'none' }}
             onChange={(e) => handleFile(e.target.files[0])}
           />
@@ -177,11 +188,11 @@ function App() {
           <div style={{ marginTop: '30px', background: 'white', borderRadius: '16px', padding: '20px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}>
             <h3 style={{ color: '#4f46e5', marginTop: 0 }}>✅ PDF Ready!</h3>
             <iframe src={pdfUrl} width="100%" height="400px" style={{ border: 'none', borderRadius: '8px' }} title="PDF Preview" />
-            <a href={pdfUrl} download={`${file?.name?.split('.')[0]}.pdf`}>
-              <button style={{ width: '100%', marginTop: '15px', padding: '12px', background: '#059669', color: 'white', border: 'none', borderRadius: '10px', fontSize: '1rem', fontWeight: 'bold', cursor: 'pointer' }}>
-                ⬇️ Download PDF
-              </button>
-            </a>
+            <button
+              onClick={() => downloadPdf(pdfUrl, `${file?.name?.split('.')[0]}.pdf`)}
+              style={{ width: '100%', marginTop: '15px', padding: '12px', background: '#059669', color: 'white', border: 'none', borderRadius: '10px', fontSize: '1rem', fontWeight: 'bold', cursor: 'pointer' }}>
+              ⬇️ Download PDF
+            </button>
           </div>
         )}
 
@@ -194,7 +205,11 @@ function App() {
                   <div style={{ fontWeight: 'bold', color: '#374151' }}>📄 {h.name}</div>
                   <div style={{ fontSize: '12px', color: '#9ca3af' }}>{h.date}</div>
                 </div>
-                <a href={h.url} download style={{ color: '#4f46e5', textDecoration: 'none', fontWeight: 'bold' }}>⬇️</a>
+                <button
+                  onClick={() => downloadPdf(h.url, h.name.split('.')[0] + '.pdf')}
+                  style={{ color: '#4f46e5', background: 'none', border: 'none', fontWeight: 'bold', cursor: 'pointer', fontSize: '1rem' }}>
+                  ⬇️
+                </button>
               </div>
             ))}
           </div>

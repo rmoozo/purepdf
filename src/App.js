@@ -43,15 +43,10 @@ function App() {
     if (f) handleFile(f);
   };
 
-  const downloadPdf = (url, name) => {
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = name;
-    link.target = '_blank';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
+ const downloadPdf = (url, name) => {
+  window.open(url, '_blank');
+};
+
 
   const convertToPDF = async () => {
     if (!file) return;

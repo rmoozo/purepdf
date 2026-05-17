@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { jsPDF } from 'jspdf';
 
+const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:4000';
+
 function App() {
   const [file, setFile] = useState(null);
   const [progress, setProgress] = useState(0);
@@ -9,26 +11,84 @@ function App() {
   const [history, setHistory] = useState([]);
   const [dragOver, setDragOver] = useState(false);
   const [piUser, setPiUser] = useState(null);
+  const [tipping, setTipping] = useState(false);
+  const [tipStatus, setTipStatus] = useState(null);
   const inputRef = useRef();
 
-  const onIncompletePaymentFound = (payment) => {
-    console.log('Incomplete payment found', payment);
+  const approvePaymentBackend = async (paymentId) => {
+    const res = await fetch(`${API_BASE}/api/payments/approve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ paymentId }),
+    });
+    if (!res.ok) throw new Error('Approve failed');
+    return res.json();
+  };
+
+  const completePaymentBackend = async (paymentId) => {
+    const res = await fetch(`${API_BASE}/api/payments/complete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ paymentId }),
+    });
+    if (!res.ok) throw new Error('Complete failed');
+    return res.json();
+  };
+
+  const onIncompletePaymentFound = async (payment) => {
+    try {
+      await approvePaymentBackend(payment.identifier);
+      await completePaymentBackend(payment.identifier);
+    } catch (e) {
+      console.log('Failed to complete incomplete payment', e);
+    }
   };
 
   useEffect(() => {
     const initPi = async () => {
       try {
         await window.Pi.init({ version: "2.0", sandbox: true });
-        const auth = await window.Pi.authenticate(['username'], onIncompletePaymentFound);
+        const auth = await window.Pi.authenticate(['username', 'payments'], onIncompletePaymentFound);
         setPiUser(auth.user.username);
       } catch (e) {
         console.log('Pi auth failed', e);
       }
     };
-    setTimeout(() => {
-      window.Pi && initPi();
-    }, 300);
+    if (window.Pi) initPi();
   }, []);
+
+  const handleTip = async () => {
+    if (!window.Pi) return;
+    setTipping(true);
+    setTipStatus(null);
+    try {
+      const payment = await window.Pi.createPayment({
+        amount: 1,
+        memo: 'Tip for PurePDF',
+        metadata: { product: 'tip' },
+      }, {
+        onReadyForServerApproval: async (paymentId) => {
+          await approvePaymentBackend(paymentId);
+        },
+        onReadyForServerCompletion: async (paymentId, txid) => {
+          await completePaymentBackend(paymentId);
+          setTipStatus('Thank you for your tip!');
+        },
+        onCancel: (paymentId) => {
+          setTipStatus('Payment cancelled.');
+        },
+        onError: (error, payment) => {
+          console.error('Payment error', error, payment);
+          setTipStatus('Payment failed. Please try again.');
+        },
+      });
+    } catch (e) {
+      console.log('Tip error', e);
+      setTipStatus('Payment failed. Please try again.');
+    } finally {
+      setTipping(false);
+    }
+  };
 
   const handleFile = (f) => {
     setFile(f);
@@ -43,16 +103,15 @@ function App() {
     if (f) handleFile(f);
   };
 
- const downloadPdf = (url, name) => {
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = name;
-  link.target = '_blank';
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-};
-
+  const downloadPdf = (url, name) => {
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = name;
+    link.target = '_blank';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const convertToPDF = async () => {
     if (!file) return;
@@ -106,21 +165,41 @@ function App() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#f0f4ff', fontFamily: 'sans-serif' }}>
-      {/* Header */}
       <div style={{ background: 'linear-gradient(135deg, #4f46e5, #7c3aed)', padding: '20px', textAlign: 'center' }}>
         <h1 style={{ color: 'white', fontSize: '2rem', margin: 0 }}>📄 PurePDF</h1>
         <p style={{ color: '#c4b5fd', margin: '5px 0 0' }}>Convert your files to PDF instantly</p>
-        <div style={{ marginTop: '10px' }}>
+        <div style={{ marginTop: '10px', display: 'flex', justifyContent: 'center', gap: '10px', alignItems: 'center' }}>
           {piUser ? (
-            <span style={{ color: '#c4b5fd', fontSize: '14px' }}>👤 {piUser}</span>
+            <>
+              <span style={{ color: '#c4b5fd', fontSize: '14px' }}>👤 {piUser}</span>
+              <button
+                onClick={handleTip}
+                disabled={tipping}
+                style={{
+                  background: '#f59e0b',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '6px 14px',
+                  fontWeight: 'bold',
+                  cursor: tipping ? 'not-allowed' : 'pointer',
+                  opacity: tipping ? 0.7 : 1,
+                }}
+              >
+                {tipping ? 'Processing...' : '💛 Tip 1 Pi'}
+              </button>
+            </>
           ) : (
             <button
-              onClick={() => window.Pi && window.Pi.authenticate(['username'], onIncompletePaymentFound)}
+              onClick={() => window.Pi && window.Pi.authenticate(['username', 'payments'], onIncompletePaymentFound)}
               style={{ background: 'white', color: '#4f46e5', border: 'none', borderRadius: '8px', padding: '6px 14px', fontWeight: 'bold', cursor: 'pointer' }}>
               Sign in with Pi
             </button>
           )}
         </div>
+        {tipStatus && (
+          <div style={{ marginTop: '8px', color: '#fde68a', fontSize: '14px' }}>{tipStatus}</div>
+        )}
       </div>
 
       <div style={{ maxWidth: '700px', margin: '40px auto', padding: '0 20px' }}>
